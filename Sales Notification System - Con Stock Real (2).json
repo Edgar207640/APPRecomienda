@@ -1,0 +1,1185 @@
+{
+  "name": "Sales Notification System - Con Stock Real",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        208
+      ],
+      "id": "14e47ee9-431f-4cdb-b752-d1b81e85cd82"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "products-sync",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook Trigger (App Android)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        400
+      ],
+      "webhookId": "products-sync-webhook",
+      "id": "73883024-2a44-4da3-9d4b-b42055933403"
+    },
+    {
+      "parameters": {
+        "url": "https://dummyjson.com/products",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "name": "Get Products from API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        -608,
+        208
+      ],
+      "id": "5c5e3279-5815-49ce-8b51-fec60a32a7c7"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtener todos los productos\nconst products = $input.all()[0].json.products;\n\n// 1. Productos con stock bajo (menos de 50 unidades)\nconst lowStock = products.filter(p => p.stock < 50);\n\n// 2. Top 5 productos por rating\nconst topRated = products\n  .filter(p => p.rating >= 4.5)\n  .sort((a, b) => b.rating - a.rating)\n  .slice(0, 5);\n\n// 3. Estadísticas generales\nconst totalProducts = products.length;\nconst avgPrice = (products.reduce((sum, p) => sum + p.price, 0) / totalProducts).toFixed(2);\nconst totalStock = products.reduce((sum, p) => sum + p.stock, 0);\nconst avgRating = (products.reduce((sum, p) => sum + p.rating, 0) / totalProducts).toFixed(2);\n\n// 4. Productos por categoría\nconst categories = {};\nproducts.forEach(p => {\n  if (!categories[p.category]) {\n    categories[p.category] = {\n      count: 0,\n      totalStock: 0,\n      avgPrice: 0,\n      products: []\n    };\n  }\n  categories[p.category].count++;\n  categories[p.category].totalStock += p.stock;\n  categories[p.category].products.push(p.title);\n});\n\nObject.keys(categories).forEach(cat => {\n  const catProducts = products.filter(p => p.category === cat);\n  categories[cat].avgPrice = (catProducts.reduce((sum, p) => sum + p.price, 0) / catProducts.length).toFixed(2);\n});\n\n// 5. Alertas de precio (productos muy caros o muy baratos)\nconst priceThreshold = parseFloat(avgPrice);\nconst expensiveProducts = products.filter(p => p.price > priceThreshold * 2);\nconst cheapProducts = products.filter(p => p.price < priceThreshold * 0.5);\n\nconst timestamp = new Date().toISOString();\nconst date = new Date().toLocaleDateString('es-GT', { \n  year: 'numeric', \n  month: 'long', \n  day: 'numeric' \n});\n\nreturn [\n  {\n    json: {\n      timestamp,\n      date,\n      lowStock,\n      topRated,\n      stats: {\n        totalProducts,\n        avgPrice,\n        totalStock,\n        avgRating,\n        lowStockCount: lowStock.length,\n        topRatedCount: topRated.length,\n        expensiveCount: expensiveProducts.length,\n        cheapCount: cheapProducts.length\n      },\n      categories,\n      allProducts: products,\n      expensiveProducts: expensiveProducts.slice(0, 3),\n      cheapProducts: cheapProducts.slice(0, 3)\n    }\n  }\n];"
+      },
+      "name": "Process and Analyze Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        208
+      ],
+      "id": "2803e5ef-41e8-4f2b-8e75-2f48f9a95d33"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.lowStock.length }}",
+              "operation": "larger"
+            }
+          ]
+        }
+      },
+      "name": "Check Low Stock",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        112
+      ],
+      "id": "3243741a-9ff8-49d8-8bda-23b9a1bc93e6"
+    },
+    {
+      "parameters": {
+        "chatId": "7777202962",
+        "text": "=={{ \"🚨 ALERTA DE INVENTARIO BAJO\\n━━━━━━━━━━━━━━━━━━━━━\\n\\n⚠️ Se detectaron \" + $json.lowStock.length + \" productos con stock crítico:\\n\\n\" + $json.lowStock.slice(0, 5).map((p, i) => (i + 1) + \". \" + p.title + \"\\n   📦 Stock: \" + p.stock + \" unidades\\n   💰 Precio: $\" + p.price + \"\\n   🏷️ Categoría: \" + p.category).join('\\n\\n') + \"\\n\\n🔔 Acción requerida: Revisar reabastecimiento\\n📅 Fecha: \" + $json.date }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Telegram - Low Stock Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "498712a5-ebef-4b6e-9527-5078b688f82a",
+      "webhookId": "e1895a4f-6eed-41a6-aa2e-e8e8d8efc3d2",
+      "credentials": {
+        "telegramApi": {
+          "id": "wrslviUBkR81vZ0v",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "7777202962",
+        "text": "=⭐ *TOP 5 PRODUCTOS MEJOR VALORADOS*\n━━━━━━━━━━━━━━━━━━━━━\n\n{{ $json.topRated.map((p, i) => `${i + 1}. *${p.title}*\n   ⭐ Rating: ${p.rating}/5\n   💰 Precio: $${p.price}\n   📦 Stock: ${p.stock} unidades\n   🏷️ ${p.category}`).join('\\n\\n') }}\n\n📅 {{ $json.date }}\n⏰ {{ new Date($json.timestamp).toLocaleTimeString('es-GT') }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Telegram - Top Products",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        0,
+        208
+      ],
+      "id": "97b0afdb-b097-43aa-8983-e90f6d0682eb",
+      "webhookId": "da412a83-a8fc-4ad9-b48a-bc982a006eae",
+      "credentials": {
+        "telegramApi": {
+          "id": "wrslviUBkR81vZ0v",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "7777202962",
+        "text": "=📊 *REPORTE DIARIO DEL SISTEMA*\n━━━━━━━━━━━━━━━━━━━━━\n\n📈 *Estadísticas Generales:*\n• Total de Productos: {{ $json.stats.totalProducts }}\n• Precio Promedio: ${{ $json.stats.avgPrice }}\n• Rating Promedio: {{ $json.stats.avgRating }}/5\n• Stock Total: {{ $json.stats.totalStock }} unidades\n\n⚠️ *Alertas:*\n• Stock Bajo: {{ $json.stats.lowStockCount }} productos\n• Productos Premium: {{ $json.stats.expensiveCount }}\n• Productos Económicos: {{ $json.stats.cheapCount }}\n\n🏷️ *Categorías Activas:* {{ Object.keys($json.categories).length }}\n\n✅ Sistema operando normalmente\n\n📅 {{ $json.date }}\n⏰ {{ new Date($json.timestamp).toLocaleTimeString('es-GT') }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Telegram - Daily Summary",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        0,
+        400
+      ],
+      "id": "fc744d00-e254-47f8-8282-0b24cb4e3eed",
+      "webhookId": "020da61d-0a45-4832-af80-5f9dbfaf1e04",
+      "credentials": {
+        "telegramApi": {
+          "id": "wrslviUBkR81vZ0v",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1Xu9aig4f_d1BaTlaRRglQOMYDEGSF1BbIYo0zWtcBWI",
+          "mode": "list",
+          "cachedResultName": "Historial_Productos",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Xu9aig4f_d1BaTlaRRglQOMYDEGSF1BbIYo0zWtcBWI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Xu9aig4f_d1BaTlaRRglQOMYDEGSF1BbIYo0zWtcBWI/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.timestamp }}",
+            "Fecha": "={{ $json.date }}",
+            "Total_Productos": "={{ $json.stats.totalProducts }}",
+            "Precio_Promedio": "={{ $json.stats.avgPrice }}",
+            "Rating_Promedio": "={{ $json.stats.avgRating }}",
+            "Stock_Total": "={{ $json.stats.totalStock }}",
+            "Alertas_Stock_Bajo": "={{ $json.stats.lowStockCount }}",
+            "Productos_Premium": "={{ $json.stats.expensiveCount }}",
+            "Productos_Economicos": "={{ $json.stats.cheapCount }}",
+            "Categorias_Activas": "={{ Object.keys($json.categories).length }}"
+          },
+          "matchingColumns": [
+            "Total_Productos"
+          ],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Total_Productos",
+              "displayName": "Total_Productos",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Precio_Promedio",
+              "displayName": "Precio_Promedio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rating_Promedio",
+              "displayName": "Rating_Promedio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Stock_Total",
+              "displayName": "Stock_Total",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Alertas_Stock_Bajo",
+              "displayName": "Alertas_Stock_Bajo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Productos_Premium",
+              "displayName": "Productos_Premium",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Productos_Economicos",
+              "displayName": "Productos_Economicos",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Categorias_Activas",
+              "displayName": "Categorias_Activas",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "name": "Google Sheets - Save Stats",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        0,
+        608
+      ],
+      "id": "8e5aa623-3b8b-4cdf-8802-78fab949e723",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GQ7IUbbC7qtpVxwm",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1MNkuP7PLsNt54QqrpAIt0HdrWslIITEk-RMUNEkzwEo",
+          "mode": "list",
+          "cachedResultName": "Log_Alertas",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1MNkuP7PLsNt54QqrpAIt0HdrWslIITEk-RMUNEkzwEo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1MNkuP7PLsNt54QqrpAIt0HdrWslIITEk-RMUNEkzwEo/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": " ={{ $json.timestamp }} ",
+            "Tipo_Alerta": " Stock Bajo",
+            "Productos_Afectados": "{{ $json.stats.lowStockCount }}",
+            "Estado": "Notificado",
+            "Detalles": "{{ $json.lowStock.map(p => p.title).join(', ') }}"
+          },
+          "matchingColumns": [
+            "Tipo_Alerta"
+          ],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Tipo_Alerta",
+              "displayName": "Tipo_Alerta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Productos_Afectados",
+              "displayName": "Productos_Afectados",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Detalles",
+              "displayName": "Detalles",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Estado",
+              "displayName": "Estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "name": "Google Sheets - Log Alerts",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "f11dcecf-9d82-47d7-9293-6fe4e996b49d",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GQ7IUbbC7qtpVxwm",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Expandir productos individuales para guardar en Google Sheets\nconst products = $input.all()[0].json.allProducts;\nconst timestamp = $input.all()[0].json.timestamp;\n\nreturn products.map(product => ({\n  json: {\n    Timestamp: timestamp,\n    Product_ID: product.id,\n    Title: product.title,\n    Description: product.description.substring(0, 100),\n    Price: product.price,\n    Discount: product.discountPercentage,\n    Rating: product.rating,\n    Stock: product.stock,\n    Brand: product.brand,\n    Category: product.category,\n    Thumbnail: product.thumbnail\n  }\n}));"
+      },
+      "name": "Expand Products for Sheet",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        608
+      ],
+      "id": "998bf2e2-80e6-4a40-b321-ccda08228b77"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1ZFP2LZvmN8v0_s8sinAmYGo48fXNVPkMMqCmyoNFF2I",
+          "mode": "list",
+          "cachedResultName": "Detalle_Productos",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ZFP2LZvmN8v0_s8sinAmYGo48fXNVPkMMqCmyoNFF2I/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ZFP2LZvmN8v0_s8sinAmYGo48fXNVPkMMqCmyoNFF2I/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "Product_ID"
+          ],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Product_ID",
+              "displayName": "Product_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Title",
+              "displayName": "Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Description",
+              "displayName": "Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Price",
+              "displayName": "Price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Discount",
+              "displayName": "Discount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Rating",
+              "displayName": "Rating",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Stock",
+              "displayName": "Stock",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Brand",
+              "displayName": "Brand",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Thumbnail",
+              "displayName": "Thumbnail",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "name": "Google Sheets - All Products Detail",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        0,
+        800
+      ],
+      "id": "e37ffb74-975b-47c6-b634-1bd7c122a715",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GQ7IUbbC7qtpVxwm",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ \n  {\n    \"success\": true,\n    \"message\": \"Análisis completado exitosamente\",\n    \"timestamp\": $json.timestamp,\n    \"stats\": $json.stats,\n    \"alerts\": {\n      \"lowStock\": $json.stats.lowStockCount > 0,\n      \"count\": $json.stats.lowStockCount\n    }\n  } \n}}",
+        "options": {}
+      },
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        400,
+        400
+      ],
+      "id": "6d491b9c-2581-46e5-883a-2df089a7420b"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "name": "Merge All Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        208,
+        400
+      ],
+      "id": "623dcbbc-7d94-4af5-a993-1dd13792ab26"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ \n  {\n    \"success\": true,\n    \"message\": \"Venta registrada exitosamente\",\n    \"venta_id\": $json.timestamp,\n    \"producto\": $json.venta.producto_nombre,\n    \"stock_actualizado\": $json.stock_nuevo,\n    \"alerta_stock\": $json.alertaStockBajo\n  }\n}}",
+        "options": {}
+      },
+      "name": "Webhook Response1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1744,
+        544
+      ],
+      "id": "fc1b3a2c-dfed-42ef-8c60-ee7281dacea1"
+    },
+    {
+      "parameters": {
+        "chatId": "=7777202962",
+        "text": "={{ \"⚠️ *ALERTA DE STOCK BAJO POST-VENTA*\\n━━━━━━━━━━━━━━━━━━━━━\\n\\n🔔 El producto *\" + $json.venta.producto_nombre + \"* ha alcanzado niveles críticos de inventario después de la última venta.\\n\\n📊 *Estado Actual:*\\n\" + (($json.agotado) ? \"🔴 *PRODUCTO AGOTADO* (0 unidades)\\n⚠️ No hay stock disponible para nuevas ventas\\n🚨 *ACCIÓN URGENTE:* Reabastecimiento inmediato\" : ($json.stockCritico) ? \"🔴 *STOCK CRÍTICO* (\" + $json.stock_nuevo + \" unidades)\\n⚠️ Solo quedan \" + $json.stock_nuevo + \" unidades disponibles\\n🔔 *RECOMENDACIÓN:* Realizar pedido urgente\" : \"🟡 *STOCK BAJO* (\" + $json.stock_nuevo + \" unidades)\\n💡 Por debajo del umbral de 50 unidades\\n📋 *SUGERENCIA:* Programar reabastecimiento\") + \"\\n\\n━━━━━━━━━━━━━━━━━━━━━\\n📈 *Información del Producto*\\n\\n• ID: #\" + $json.producto.id + \"\\n• Categoría: \" + $json.producto.category + \"\\n• Rating: \" + $json.producto.rating + \"/5.0 ⭐\\n• Precio: $\" + $json.producto.price + \"\\n\\n\" + (($json.producto.rating >= 4.5) ? \"⭐ *PRODUCTO ESTRELLA*\\nAlta demanda y excelente valoración\\n\" : \"\") + \"\\n🔄 *Próximos Pasos:*\\n1. Contactar proveedor\\n2. Verificar tiempos de entrega\\n3. Considerar pedido de emergencia\\n\" + (($json.agotado) ? \"4. Actualizar estado en tienda (Agotado)\\n5. Notificar a clientes sobre disponibilidad\" : \"\") + \"\\n━━━━━━━━━━━━━━━━━━━━━\\n📅 \" + $json.venta.fecha_formateada }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Telegram - Low Stock Warning",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1552,
+        848
+      ],
+      "id": "f8cd6bc5-6625-4058-b060-2006617c17bd",
+      "webhookId": "dec2b1da-9819-4bbb-bfb7-01d4c5a21df2",
+      "credentials": {
+        "telegramApi": {
+          "id": "wrslviUBkR81vZ0v",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.alertaStockBajo }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Check if Low Stock",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1344,
+        752
+      ],
+      "id": "6f0b80bc-4858-453e-a392-0c5f2acec6ed"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1ARvwxuUvA0dxwaw3aWB03XTQtGtyYwIZJGr9DvqIPOQ",
+          "mode": "list",
+          "cachedResultName": "Ventas",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ARvwxuUvA0dxwaw3aWB03XTQtGtyYwIZJGr9DvqIPOQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ARvwxuUvA0dxwaw3aWB03XTQtGtyYwIZJGr9DvqIPOQ/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "=={{ $json.timestamp }}",
+            "Fecha": "=={{ $json.venta.fecha }}",
+            "Producto_ID": "=={{ $json.producto.id }}",
+            "Producto_Nombre": "=={{ $json.venta.producto_nombre }}",
+            "Cantidad": "=={{ $json.venta.cantidad }}",
+            "Precio_Unitario": "=={{ $json.venta.precio_unitario }}",
+            "Total_Venta": "=={{ $json.venta.total }}",
+            "Metodo_Pago": "=={{ $json.venta.metodo_pago }}",
+            "Usuario_ID": "=={{ $json.venta.usuario_id }}",
+            "Stock_Anterior": "=={{ $json.stock_anterior }}",
+            "Stock_Nuevo": "=={{ $json.stock_nuevo }}",
+            "Estado_Stock": "=={{ $json.estado_stock }}",
+            "Categoria": "=={{ $json.producto.category }}",
+            "Rating": "=={{ $json.producto.rating }}"
+          },
+          "matchingColumns": [
+            "Producto_ID"
+          ],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Producto_ID",
+              "displayName": "Producto_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Producto_Nombre",
+              "displayName": "Producto_Nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Cantidad",
+              "displayName": "Cantidad",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Precio_Unitario",
+              "displayName": "Precio_Unitario",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Total_Venta",
+              "displayName": "Total_Venta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Metodo_Pago",
+              "displayName": "Metodo_Pago",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Usuario_ID",
+              "displayName": "Usuario_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Stock_Anterior",
+              "displayName": "Stock_Anterior",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Stock_Nuevo",
+              "displayName": "Stock_Nuevo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Estado_Stock",
+              "displayName": "Estado_Stock",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Categoria",
+              "displayName": "Categoria",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Rating",
+              "displayName": "Rating",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "name": "Google Sheets - Save Sale",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1344,
+        352
+      ],
+      "id": "eaca901f-687c-4274-8190-678cb4e637d7",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GQ7IUbbC7qtpVxwm",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "=7777202962",
+        "text": "=={{ \"🎉 NUEVA VENTA\\n\\nProducto: \" + $json.venta.producto_nombre + \"\\nCantidad: \" + $json.venta.cantidad + \"\\nTotal: $\" + $json.venta.total + \"\\nMétodo: \" + $json.venta.metodo_pago + \"\\nCliente: \" + ($json.venta.usuario_id || \"Anonimo\") + \"\\n\\nStock anterior: \" + $json.stock_anterior + \"\\nStock nuevo: \" + $json.stock_nuevo + \"\\nEstado: \" + $json.estado_stock + \"\\n\\nFecha: \" + $json.venta.fecha }}\n```\n\n---\n\n## 📋 **Configuración del nodo Telegram:**\n```\nChat ID:7777202962  (o tu chat ID directo)\nText: [el código de arriba]\nAdditional Fields: [vacío o sin parse_mode]",
+        "additionalFields": {}
+      },
+      "name": "Telegram - Sale Notification",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1344,
+        544
+      ],
+      "id": "bfc9870c-4ac5-43c0-b843-e511ec7737dd",
+      "webhookId": "ad843440-c7ff-40ed-9ef8-715c4803b9b0",
+      "credentials": {
+        "telegramApi": {
+          "id": "wrslviUBkR81vZ0v",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const venta = $json;\n\nconst stock_anterior = 100;\nconst nuevoStock = stock_anterior - venta.cantidad;\nconst alertaStockBajo = nuevoStock < 50;\nconst stockCritico = nuevoStock < 20;\nconst agotado = nuevoStock <= 0;\n\nreturn {\n  json: {\n    venta: venta,\n    producto: {\n      id: venta.producto_id,\n      title: venta.producto_nombre,\n      price: venta.precio_unitario,\n      rating: 4.5,\n      category: \"General\",\n      brand: \"N/A\",\n      stock: stock_anterior,\n      discountPercentage: 10,\n      description: \"Producto desde app Android\"\n    },\n    stock_anterior: stock_anterior,\n    stock_nuevo: nuevoStock,\n    unidades_vendidas: venta.cantidad,\n    alertaStockBajo: alertaStockBajo,\n    stockCritico: stockCritico,\n    agotado: agotado,\n    estado_stock: agotado ? \"AGOTADO\" : stockCritico ? \"CRITICO\" : alertaStockBajo ? \"BAJO\" : \"NORMAL\",\n    timestamp: venta.timestamp,\n    fecha_formateada: venta.fecha_formateada\n  }\n};"
+      },
+      "name": "Calculate New Stock",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        544
+      ],
+      "id": "f1249a76-de4f-4ae6-bd3f-ed933ed40762"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "Nueva Venta",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook - Nueva Venta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        544,
+        544
+      ],
+      "webhookId": "venta-realizada-webhook",
+      "id": "ab527591-4847-4166-81a7-df77d2f91c4e"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtener datos del body del webhook\nconst items = $input.all();\nconst body = items[0].json.body || items[0].json;\n\nconst ventaProcessed = {\n  producto_id: body.producto_id,\n  producto_nombre: body.producto_nombre,\n  cantidad: body.cantidad,\n  precio_unitario: body.precio_unitario,\n  total: body.total,\n  usuario_id: body.usuario_id,\n  fecha: body.fecha,\n  metodo_pago: body.metodo_pago,\n  timestamp: new Date().toISOString(),\n  fecha_formateada: new Date().toLocaleDateString('es-GT', {\n    year: 'numeric',\n    month: 'long',\n    day: 'numeric',\n    hour: '2-digit',\n    minute: '2-digit'\n  })\n};\n\nreturn [{ json: ventaProcessed }];"
+      },
+      "name": "Process Sale Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        544
+      ],
+      "id": "420b94a0-5e55-41f8-8422-499b062bb9b8"
+    },
+    {
+      "parameters": {
+        "url": "https://dummyjson.com/products/{{ $json.producto_id }}",
+        "options": {}
+      },
+      "name": "Get Product Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        960,
+        544
+      ],
+      "id": "ef8ea7f4-2e18-4f98-a988-afd30aad3392"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Products from API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger (App Android)": {
+      "main": [
+        [
+          {
+            "node": "Get Products from API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Products from API": {
+      "main": [
+        [
+          {
+            "node": "Process and Analyze Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process and Analyze Data": {
+      "main": [
+        [
+          {
+            "node": "Check Low Stock",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram - Top Products",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram - Daily Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Sheets - Save Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Expand Products for Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Low Stock": {
+      "main": [
+        [
+          {
+            "node": "Telegram - Low Stock Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram - Low Stock Alert": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Log Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram - Top Products": {
+      "main": [
+        [
+          {
+            "node": "Merge All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram - Daily Summary": {
+      "main": [
+        [
+          {
+            "node": "Merge All Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Expand Products for Sheet": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - All Products Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Results": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram - Low Stock Warning": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Low Stock": {
+      "main": [
+        [
+          {
+            "node": "Telegram - Low Stock Warning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Save Sale": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram - Sale Notification": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate New Stock": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Save Sale",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram - Sale Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check if Low Stock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Nueva Venta": {
+      "main": [
+        [
+          {
+            "node": "Process Sale Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Sale Data": {
+      "main": [
+        [
+          {
+            "node": "Get Product Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Product Details": {
+      "main": [
+        [
+          {
+            "node": "Calculate New Stock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0a3bfe02-44b2-4d43-9690-0929b5fc4562",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cbab5c0f326979aca4d94a83ee2fa3b40c16a136e6413b3f760861e2082c57e9"
+  },
+  "id": "d7CHz0PkxOHJmtbn",
+  "tags": []
+}

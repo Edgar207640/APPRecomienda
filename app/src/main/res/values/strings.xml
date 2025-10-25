@@ -1,0 +1,81 @@
+<resources>
+    <string name="app_name">Recomienda</string>
+    <string name="action_settings">Settings</string>
+
+    <!-- LoginActivity -->
+    <string name="continuar_como_invitado">Continuar como invitado</string>
+    <string name="continuar_con_google">Continuar con Google</string>
+
+    <!-- OnboardingActivity -->
+    <string name="onboarding_title">Selecciona tus intereses</string>
+    <string name="onboarding_subtitle">Personaliza tu experiencia para obtener mejores recomendaciones.</string>
+    <string name="onboarding_button_save">Guardar y continuar</string>
+    <string name="category_tecnologia">Tecnología</string>
+    <string name="category_supermercado">Supermercado</string>
+    <string name="category_mecanica">Mecánica</string>
+    <string name="category_restaurantes">Restaurantes</string>
+    <string name="category_prendas">Prendas</string>
+    <string name="category_salud">Salud</string>
+    <string name="category_para_ti">Para ti</string>
+
+    <!-- BottomNavigationView -->
+    <string name="title_home">Home</string>
+    <string name="title_buscar">Buscar</string>
+    <string name="title_favoritos">Favoritos</string>
+    <string name="title_configuracion">Configuración</string>
+
+    <!-- item_producto.xml -->
+    <string name="ver_mas">Ver más</string>
+    <string name="me_gusta">Me gusta</string>
+    <string name="no_me_interesa">No me interesa</string>
+    <string name="precio_format">$ %.2f</string>
+    <string name="producto_imagen_descripcion">Imagen del producto</string>
+
+    <!-- User Feedback -->
+    <string name="agregado_a_favoritos">Agregado a favoritos</string>
+    <string name="eliminado_de_favoritos">Eliminado de favoritos</string>
+    <string name="marcado_como_no_interesante">Marcado como no interesante</string>
+    <string name="no_hay_conexion">No hay conexión a internet. Mostrando datos locales.</string>
+    <string name="no_se_encontraron_productos">No se encontraron productos.</string>
+    <string name="favoritos_lista_vacia">Aún no tienes productos favoritos. ¡Explora y guarda los que más te gusten!</string>
+    
+    <!-- Categorías de Filtro -->
+    <string name="category_todos">Todos</string>
+
+    <!-- SearchFragment -->
+    <string name="search_hint">Buscar productos o servicios...</string>
+    <string name="search_no_results">No se encontraron resultados para "%1$s"</string>
+    <string name="search_initial_prompt">Escribe algo para empezar a buscar.</string>
+
+    <!-- ConfiguracionFragment -->
+    <string name="config_edit_profile">Editar Perfil</string>
+    <string name="config_change_preferences">Cambiar Preferencias de Categorías</string>
+    <string name="config_logout">Salir</string>
+    <string name="config_test_notification">Probar Notificación</string>
+    <!-- Anotación: FUNCIONALIDAD AÑADIDA. Strings para el modo oscuro. -->
+    <string name="config_theme_title">Modo Oscuro</string>
+    <string name="config_theme_subtitle">Activa el tema oscuro en toda la aplicación</string>
+
+    <!-- ProductoDetalleActivity -->
+    <string name="detalle_titulo_descripcion">Descripción</string>
+    <string name="detalle_titulo_opiniones">Opiniones</string>
+    <string name="anadir_al_carrito">Añadir al carrito</string>
+    <string name="producto_anadido_al_carrito">Producto añadido al carrito</string>
+
+    <!-- Carrito -->
+    <string name="title_activity_carrito">Carrito de Compras</string>
+    <string name="carrito_vacio">Tu carrito está vacío.</string>
+    <string name="total">Total: %s</string>
+    <string name="comprar_ahora">Comprar ahora</string>
+    <string name="action_cart">Carrito</string>
+
+    <!-- HomeFragment -->
+    <string name="home_seccion_ofertas">Ofertas del Día</string>
+
+    <!-- Notificaciones -->
+    <string name="notification_channel_name">Ofertas y Promociones</string>
+    <string name="notification_channel_description">Notificaciones sobre nuevas ofertas y productos.</string>
+    <string name="notification_title">¡Nueva Oferta!</string>
+    <string name="notification_content">¡No te pierdas nuestras nuevas ofertas del día!</string>
+
+</resources>
